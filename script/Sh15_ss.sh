@@ -103,8 +103,8 @@ DNS_Server=127.0.0.1#8053
 ss_pdnsd_all=`nvram get ss_pdnsd_all`
 [ "$ss_mode_x" != "0" ] && kcptun2_enable=$kcptun2_enable2
 [ "$kcptun2_enable" = "2" ] && ss_server2=""
-[ -z "$ss_server2" ] && [ "$kcptun2_enable" != "2" ] && kcptun2_enable=2 && { [ "$ACTION" != "keep" ] && logger -t "【SS】" "设置内容:非 chnroute 模式, 备服务器 停用" ; }
-[ "$ss_mode_x" != "0" ] && [ ! -z "$ss_server2" ] && [ "$kcptun2_enable" != "2" ] && kcptun2_enable=0 && { [ "$ACTION" != "keep" ] && logger -t "【SS】" "设置内容:非 chnroute 模式，备服务器 故障转移 模式" ; }
+[ -z "$ss_server2" ] && [ "$kcptun2_enable" != "2" ] && kcptun2_enable=2 && { [ "$ACTION" != "keep" ] && logger -t "【SS】" "$@ 设置内容:非 chnroute 模式, 备服务器 停用" ; }
+[ "$ss_mode_x" != "0" ] && [ ! -z "$ss_server2" ] && [ "$kcptun2_enable" != "2" ] && kcptun2_enable=0 && { [ "$ACTION" != "keep" ] && logger -t "【SS】" "$@ 设置内容:非 chnroute 模式，备服务器 故障转移 模式" ; }
 [ "$ss_mode_x" != "0" ] && nvram set kcptun2_enable2=$kcptun2_enable
 [ "$ss_mode_x" = "0" ] && nvram set kcptun2_enable=$kcptun2_enable
 [ "$ss_pdnsd_all" = "1" ] && [ "$ss_mode_x" != "0" ] && ss_pdnsd_all=0 && { [ "$ACTION" != "keep" ] && logger -t "【SS】" "设置内容:非 chnroute 模式，不转全部发pdnsd" ; }
@@ -337,6 +337,9 @@ SSJSON
 SSJSONSH
 chmod 755 /tmp/SSJSON.sh
 
+#检查  libsodium.so.23
+[ -f /lib/libsodium.so.23 ] && libsodium_so=libsodium.so.23
+[ -f /lib/libsodium.so.18 ] && libsodium_so=libsodium.so.18
 
 start_ss_redir()
 {
@@ -1545,6 +1548,8 @@ return $?
 #1 获取gfwlist 被墙列表
 update_gfwlist()
 {
+
+[ "$ss_mode_x" = "3" ] && return #3为ss-local 建立本地 SOCKS 代理
 echo "gfwlist updating"
 if [ -f /tmp/cron_ss.lock ] ; then
 	  logger -t "【SS】" "Other SS GFWList updating...."
@@ -1613,8 +1618,7 @@ else
 fi
 	# 临时添加的域名
 	echo "whatsapp.net" >> /tmp/ss/gfwall_domain.txt
-	echo "nflxvideo.net" >> /tmp/ss/gfwall_domain.txt
-	echo "nflxso.net" >> /tmp/ss/gfwall_domain.txt
+	
 	grep -v '^#' /etc/storage/shadowsocks_ss_spec_wan.sh | sort -u | grep -v "^$" | sed s/！/!/g > /tmp/ss_spec_wan.txt
 	#删除忽略的域名
 	while read line
@@ -1722,6 +1726,8 @@ fi
 
 update_chnroutes()
 {
+
+[ "$ss_mode_x" = "3" ] && return #3为ss-local 建立本地 SOCKS 代理
 echo "chnroutes updating"
 if [ -f /tmp/cron_ss.lock ] ; then
 	logger -t "【SS】" "Other SS chnroutes updating...."
@@ -1927,28 +1933,28 @@ optssredir="0"
 if [ "$ss_type" != "1" ] ; then
 # SS
 if [ "$ss_mode_x" != "3" ] ; then
-chmod 777 "`which ss-redir`"
+chmod 777 "/usr/sbin/ss-redir"
 	[[ "$(ss-redir -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ss-redir
 	hash ss-redir 2>/dev/null || optssredir="1"
 else
-chmod 777 "`which ss-local`"
+chmod 777 "/usr/sbin/ss-local"
 	[[ "$(ss-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ss-local
 	hash ss-local 2>/dev/null || optssredir="2"
 fi
 if [ "$optssredir" = "1" ] ; then
 	logger -t "【SS】" "找不到 ss-redir. opt下载程序"
-	[ ! -s /opt/bin/ss-redir ] && wgetcurl.sh "/opt/bin/ss-redir" "$hiboyfile/ss-redir" "$hiboyfile2/ss-redir"
+	[ ! -s /opt/bin/ss-redir ] && wgetcurl.sh "/opt/bin/ss-redir" "$hiboyfile/$libsodium_so/ss-redir" "$hiboyfile2/$libsodium_so/ss-redir"
 	chmod 777 "/opt/bin/ss-redir"
 hash ss-redir 2>/dev/null || { logger -t "【SS】" "找不到 ss-redir, 请检查系统"; ss_restart x ; }
 fi
 if [ "$ss_run_ss_local" = "1" ] ; then
-chmod 777 "`which ss-local`"
+chmod 777 "/usr/sbin/ss-local"
 	[[ "$(ss-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ss-local
 	hash ss-local 2>/dev/null || optssredir="3"
 fi
 if [ "$optssredir" = "2" ] || [ "$optssredir" = "3" ]; then
 	logger -t "【SS】" "找不到 ss-local. opt 下载程序"
-	[ ! -s /opt/bin/ss-local ] && wgetcurl.sh "/opt/bin/ss-local" "$hiboyfile/ss-local" "$hiboyfile2/ss-local"
+	[ ! -s /opt/bin/ss-local ] && wgetcurl.sh "/opt/bin/ss-local" "$hiboyfile/$libsodium_so/ss-local" "$hiboyfile2/$libsodium_so/ss-local"
 	chmod 777 "/opt/bin/ss-local"
 	hash ss-local 2>/dev/null || { logger -t "【SS】" "找不到 ss-local, 请检查系统"; ss_restart x ; }
 fi
@@ -1977,26 +1983,26 @@ if [ "$ss_type" = "1" ] ; then
 if [ "$ssrr_type" = "1" ] ; then
 # SSRR
 if [ "$ss_mode_x" != "3" ] ; then
-chmod 777 "`which ssrr-redir`"
+chmod 777 "/opt/bin/ssrr-redir"
 	[[ "$(ssrr-redir -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssrr-redir
 	hash ssrr-redir 2>/dev/null || optssredir="1"
 else
-chmod 777 "`which ssrr-local`"
+chmod 777 "/opt/bin/ssrr-local"
 	[[ "$(ssrr-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssrr-local
 	hash ssrr-local 2>/dev/null || optssredir="2"
 fi
 if [ "$optssredir" = "1" ] ; then
-	[ ! -s /opt/bin/ssrr-redir ] && wgetcurl.sh "/opt/bin/ssrr-redir" "$hiboyfile/ssrr-redir" "$hiboyfile2/ssrr-redir"
+	[ ! -s /opt/bin/ssrr-redir ] && wgetcurl.sh "/opt/bin/ssrr-redir" "$hiboyfile/$libsodium_so/ssrr-redir" "$hiboyfile2/$libsodium_so/ssrr-redir"
 	chmod 777 "/opt/bin/ssrr-redir"
 hash ssrr-redir 2>/dev/null || { logger -t "【SS】" "找不到 ssrr-redir, 请检查系统"; ss_restart x ; }
 fi
 if [ "$ss_run_ss_local" = "1" ] ; then
-chmod 777 "`which ssrr-local`"
+chmod 777 "/opt/bin/ssrr-local"
 	[[ "$(ssrr-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssrr-local
 	hash ssrr-local 2>/dev/null || optssredir="3"
 fi
 if [ "$optssredir" = "2" ] || [ "$optssredir" = "3" ]; then
-	[ ! -s /opt/bin/ssrr-local ] && wgetcurl.sh "/opt/bin/ssrr-local" "$hiboyfile/ssrr-local" "$hiboyfile2/ssrr-local"
+	[ ! -s /opt/bin/ssrr-local ] && wgetcurl.sh "/opt/bin/ssrr-local" "$hiboyfile/$libsodium_so/ssrr-local" "$hiboyfile2/$libsodium_so/ssrr-local"
 	chmod 777 "/opt/bin/ssrr-local"
 	hash ssrr-local 2>/dev/null || { logger -t "【SS】" "找不到 ssrr-local, 请检查系统"; ss_restart x ; }
 fi
@@ -2004,26 +2010,26 @@ fi
 else
 # SSR
 if [ "$ss_mode_x" != "3" ] ; then
-chmod 777 "`which ssr-redir`"
+chmod 777 "/usr/sbin/ssr-redir"
 	[[ "$(ssr-redir -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssr-redir
 	hash ssr-redir 2>/dev/null || optssredir="1"
 else
-chmod 777 "`which ssr-local`"
+chmod 777 "/usr/sbin/ssr-local"
 	[[ "$(ssr-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssr-local
 	hash ssr-local 2>/dev/null || optssredir="2"
 fi
 if [ "$optssredir" = "1" ] ; then
-	[ ! -s /opt/bin/ssr-redir ] && wgetcurl.sh "/opt/bin/ssr-redir" "$hiboyfile/ssr-redir" "$hiboyfile2/ssr-redir"
+	[ ! -s /opt/bin/ssr-redir ] && wgetcurl.sh "/opt/bin/ssr-redir" "$hiboyfile/$libsodium_so/ssr-redir" "$hiboyfile2/$libsodium_so/ssr-redir"
 	chmod 777 "/opt/bin/ssr-redir"
 hash ssr-redir 2>/dev/null || { logger -t "【SS】" "找不到 ssr-redir, 请检查系统"; ss_restart x ; }
 fi
 if [ "$ss_run_ss_local" = "1" ] ; then
-chmod 777 "`which ssr-local`"
+chmod 777 "/usr/sbin/ssr-local"
 	[[ "$(ssr-local -h | wc -l)" -lt 2 ]] && rm -rf /opt/bin/ssr-local
 	hash ssr-local 2>/dev/null || optssredir="3"
 fi
 if [ "$optssredir" = "2" ] || [ "$optssredir" = "3" ]; then
-	[ ! -s /opt/bin/ssr-local ] && wgetcurl.sh "/opt/bin/ssr-local" "$hiboyfile/ssr-local" "$hiboyfile2/ssr-local"
+	[ ! -s /opt/bin/ssr-local ] && wgetcurl.sh "/opt/bin/ssr-local" "$hiboyfile/$libsodium_so/ssr-local" "$hiboyfile2/$libsodium_so/ssr-local"
 	chmod 777 "/opt/bin/ssr-local"
 	hash ssr-local 2>/dev/null || { logger -t "【SS】" "找不到 ssr-local, 请检查系统"; ss_restart x ; }
 fi
@@ -2163,7 +2169,7 @@ sync
 nvram set kcptun_status="cleanss"
 nvram set ss_status="cleanss"
 /tmp/script/_kcp_tun &
-sleep 1
+sleep 5
 ss_restart $1
 exit 0
 }
@@ -2766,6 +2772,7 @@ ss_cron_job(){
 	[ -z $ss_update ] && ss_update=0 && nvram set ss_update=$ss_update
 	[ -z $ss_update_hour ] && ss_update_hour=23 && nvram set ss_update_hour=$ss_update_hour
 	[ -z $ss_update_min ] && ss_update_min=59 && nvram set ss_update_min=$ss_update_min
+	[ "$ss_mode_x" = "3" ] && ss_update=2 #3为ss-local 建立本地 SOCKS 代理
 	if [ "0" == "$ss_update" ]; then
 	[ $ss_update_hour -gt 23 ] && ss_update_hour=23 && nvram set ss_update_hour=$ss_update_hour
 	[ $ss_update_hour -lt 0 ] && ss_update_hour=0 && nvram set ss_update_hour=$ss_update_hour
@@ -2925,6 +2932,7 @@ flush)
 	clean_ss_rules
 	;;
 update)
+	[ "$ss_mode_x" = "3" ] && return #3为ss-local 建立本地 SOCKS 代理
 	#check_setting
 	[ ${ss_enable:=0} ] && [ "$ss_enable" -eq "0" ] && exit 0
 	# [ "$ss_mode_x" = "3" ] && exit 0
